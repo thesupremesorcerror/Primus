@@ -1,0 +1,15 @@
+# Backend
+backend/target/
+backend/.idea/
+*.iml
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.idea/
+
+# Root
+.idea/
+.env
+*.log
+.DS_Store
