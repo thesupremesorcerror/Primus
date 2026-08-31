@@ -22,7 +22,7 @@ server:
 
 primus:
   gemini:
-    api-key: ${GEMINI_API_KEY}
+    api-key: ${GEMINI_API_KEY:test-placeholder-key}
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-please-change-in-production-minimum-32-chars}
     expiration-minutes: 60

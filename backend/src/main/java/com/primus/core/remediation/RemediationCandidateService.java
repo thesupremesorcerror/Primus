@@ -44,4 +44,9 @@ public class RemediationCandidateService {
         return repository.findById(candidateId)
                 .orElseThrow(() -> new RuntimeException("Candidate not found: " + candidateId));
     }
+    public RemediationCandidate updateStatus(UUID candidateId, String status) {
+        RemediationCandidate candidate = getCandidate(candidateId);
+        candidate.setStatus(status);
+        return repository.save(candidate);
+    }
 }

@@ -4,6 +4,7 @@ import com.primus.core.memory.IncidentMemoryService;
 import com.primus.core.remediation.RemediationCandidate;
 import com.primus.core.remediation.RemediationCandidateService;
 import com.primus.core.agent.DiagnosticTools;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -91,6 +92,7 @@ public class IncidentController {
         return candidateService.getCandidatesForIncident(id);
     }
 
+    @PreAuthorize("hasAnyRole('APPROVER', 'ADMIN')")
     @PostMapping("/{id}/approve/{candidateId}")
     public Incident approveCandidate(@PathVariable UUID id, @PathVariable UUID candidateId) {
         Incident incident = incidentRepository.findById(id)
@@ -104,7 +106,7 @@ public class IncidentController {
             default -> throw new RuntimeException("Unknown action type: " + candidate.getActionType());
         };
 
-        candidate.setStatus("EXECUTED");
+        candidateService.updateStatus(candidateId, "EXECUTED");
 
         boolean healthy = diagnosticTools.checkServiceHealth(candidate.getServiceName());
         String actionTaken = candidate.getActionType() + "(" + candidate.getServiceName() + ")";
@@ -120,10 +122,10 @@ public class IncidentController {
         return incidentRepository.save(incident);
     }
 
+    @PreAuthorize("hasAnyRole('APPROVER', 'ADMIN')")
     @PostMapping("/{id}/reject/{candidateId}")
     public Incident rejectCandidate(@PathVariable UUID id, @PathVariable UUID candidateId) {
-        RemediationCandidate candidate = candidateService.getCandidate(candidateId);
-        candidate.setStatus("REJECTED");
+        candidateService.updateStatus(candidateId, "REJECTED");
 
         Incident incident = incidentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Incident not found: " + id));
