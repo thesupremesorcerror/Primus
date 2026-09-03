@@ -4,12 +4,16 @@
   --bg: #fff;
   --border: #e5e4e7;
   --code-bg: #f4f3ec;
+
   --accent: #aa3bff;
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
+
   --social-bg: rgba(244, 243, 236, 0.5);
+
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(0, 0, 0, 0.1) 0 10px 15px -3px,
+    rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -17,11 +21,14 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
+
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
@@ -30,6 +37,11 @@
   }
 }
 
+
+/* ================================
+   DARK MODE
+   ================================ */
+
 @media (prefers-color-scheme: dark) {
   :root {
     --text: #9ca3af;
@@ -37,12 +49,16 @@
     --bg: #16171d;
     --border: #2e303a;
     --code-bg: #1f2028;
+
     --accent: #c084fc;
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
+
     --social-bg: rgba(47, 48, 58, 0.5);
+
     --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+      rgba(0, 0, 0, 0.4) 0 10px 15px -3px,
+      rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }
 
   #social .button-icon {
@@ -50,21 +66,55 @@
   }
 }
 
+
+/* ================================
+   ROOT
+   ================================ */
+
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+
+  min-height: 100vh;
   min-height: 100svh;
+
+  margin: 0;
+  padding: 0;
+
+  text-align: center;
+
+  border: none;
+
   display: flex;
   flex-direction: column;
+
   box-sizing: border-box;
 }
 
+
+/* ================================
+   BODY
+   ================================ */
+
+html,
 body {
   margin: 0;
+  padding: 0;
+
+  width: 100%;
+  min-height: 100%;
+
+  overflow-x: hidden;
 }
+
+body {
+  background: var(--bg);
+}
+
+
+/* ================================
+   HEADINGS
+   ================================ */
 
 h1,
 h2 {
@@ -77,23 +127,37 @@ h1 {
   font-size: 56px;
   letter-spacing: -1.68px;
   margin: 32px 0;
+
   @media (max-width: 1024px) {
     font-size: 36px;
     margin: 20px 0;
   }
 }
+
 h2 {
   font-size: 24px;
   line-height: 118%;
   letter-spacing: -0.24px;
   margin: 0 0 8px;
+
   @media (max-width: 1024px) {
     font-size: 20px;
   }
 }
+
+
+/* ================================
+   PARAGRAPHS
+   ================================ */
+
 p {
   margin: 0;
 }
+
+
+/* ================================
+   CODE / COUNTER
+   ================================ */
 
 code,
 .counter {
@@ -108,4 +172,51 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+.login-trigger {
+  width: min(420px, calc(100vw - 40px));
+  padding: 20px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  box-sizing: border-box;
+}
+
+.login-card {
+  width: 100%;
+  padding: 38px 40px 40px;
+
+  border-radius: 20px;
+
+  background: rgba(10, 8, 20, 0.08);
+
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  box-shadow:
+    0 15px 40px rgba(0, 0, 0, 0.18),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+
+  box-sizing: border-box;
+
+  /* Hidden initially */
+  opacity: 0;
+  transform: translateY(10px) scale(0.97);
+
+  pointer-events: none;
+
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+/* Show login when mouse enters the center area */
+.login-trigger:hover .login-card {
+  opacity: 1 !important;
+  transform: translateY(0) scale(1) !important;
+  pointer-events: auto !important;
 }

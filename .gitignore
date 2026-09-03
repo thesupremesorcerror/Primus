@@ -13,3 +13,4 @@ frontend/.idea/
 .env
 *.log
 .DS_Store
+primus_log.txt
