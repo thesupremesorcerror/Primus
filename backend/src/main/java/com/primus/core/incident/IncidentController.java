@@ -1,9 +1,10 @@
 package com.primus.core.incident;
 
+import com.primus.core.agent.DiagnosticTools;
+import com.primus.core.agent.Orchestrator;
 import com.primus.core.memory.IncidentMemoryService;
 import com.primus.core.remediation.RemediationCandidate;
 import com.primus.core.remediation.RemediationCandidateService;
-import com.primus.core.agent.DiagnosticTools;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,20 +18,20 @@ public class IncidentController {
 
     private final IncidentRepository incidentRepository;
     private final com.primus.core.diagnosis.DiagnosisService diagnosisService;
-    private final com.primus.core.agent.AgentLoop agentLoop;
+    private final Orchestrator orchestrator;
     private final IncidentMemoryService incidentMemoryService;
     private final RemediationCandidateService candidateService;
     private final DiagnosticTools diagnosticTools;
 
     public IncidentController(IncidentRepository incidentRepository,
                               com.primus.core.diagnosis.DiagnosisService diagnosisService,
-                              com.primus.core.agent.AgentLoop agentLoop,
+                              Orchestrator orchestrator,
                               IncidentMemoryService incidentMemoryService,
                               RemediationCandidateService candidateService,
                               DiagnosticTools diagnosticTools) {
         this.incidentRepository = incidentRepository;
         this.diagnosisService = diagnosisService;
-        this.agentLoop = agentLoop;
+        this.orchestrator = orchestrator;
         this.incidentMemoryService = incidentMemoryService;
         this.candidateService = candidateService;
         this.diagnosticTools = diagnosticTools;
@@ -68,7 +69,7 @@ public class IncidentController {
         Incident incident = incidentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Incident not found: " + id));
 
-        com.primus.core.agent.AgentLoop.AgentResult result = agentLoop.diagnose(incident);
+        Orchestrator.OrchestratorResult result = orchestrator.run(incident);
 
         incident.setRootCauseGuess(result.diagnosis);
 

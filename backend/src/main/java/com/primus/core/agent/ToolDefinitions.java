@@ -2,6 +2,7 @@ package com.primus.core.agent;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class ToolDefinitions {
 
@@ -85,6 +86,12 @@ public class ToolDefinitions {
                         )
                 )
         );
+    }
+
+    public static List<Map<String, Object>> getFunctionDeclarationsFor(Set<String> allowedNames) {
+        return getFunctionDeclarations().stream()
+                .filter(decl -> allowedNames.contains(decl.get("name")))
+                .toList();
     }
 
     public static final Map<String, String> RISK_LEVELS = Map.of(
