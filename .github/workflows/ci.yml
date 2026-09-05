@@ -41,4 +41,9 @@ jobs:
         working-directory: ./backend
         env:
           GEMINI_API_KEY: test-placeholder-key
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: primusdb
+          DB_USER: postgres
+          DB_PASSWORD: postgres
         run: ./mvnw test
