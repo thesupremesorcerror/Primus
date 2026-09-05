@@ -11,6 +11,9 @@ import java.util.Map;
 @Component
 public class GeminiClient {
 
+    private static final long MIN_INTERVAL_MS = 4500; // ~13 req/min, safely under 15/min free tier cap
+    private volatile long lastCallTime = 0;
+
     private final RestClient restClient;
     private final String apiKey;
 
@@ -40,7 +43,21 @@ public class GeminiClient {
         return callGemini(requestBody);
     }
 
+    private synchronized void throttle() {
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastCallTime;
+        if (elapsed < MIN_INTERVAL_MS) {
+            try {
+                Thread.sleep(MIN_INTERVAL_MS - elapsed);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        lastCallTime = System.currentTimeMillis();
+    }
+
     private Map<String, Object> callGemini(Map<String, Object> requestBody) {
+        throttle();
         return restClient.post()
                 .uri("/models/gemini-3.1-flash-lite:generateContent")
                 .header("X-goog-api-key", apiKey)
