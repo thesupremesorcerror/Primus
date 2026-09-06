@@ -31,9 +31,13 @@ public class RuleBasedDiagnoser {
             observedScenario = "BAD_DEPLOYMENT";
             diagnosis = "Recent deployment appears to have introduced a regression.";
             proposedAction = "rollback_deployment";
-        } else if (joined.contains("connection") || joined.contains("pool")) {
+        } else if (joined.contains("pool")) {
             observedScenario = "CONNECTION_POOL";
             diagnosis = "Database connection pool appears exhausted.";
+            proposedAction = "scale_service";
+        } else if (joined.contains("connection")) {
+            observedScenario = "TRANSIENT_GLITCH";
+            diagnosis = "Transient connectivity issue detected, no persistent resource or deployment problem found.";
             proposedAction = "restart_service";
         } else {
             observedScenario = "UNKNOWN";
@@ -52,6 +56,7 @@ public class RuleBasedDiagnoser {
         return switch (action) {
             case "restart_service" -> diagnosticTools.restartService(serviceName);
             case "rollback_deployment" -> diagnosticTools.rollbackDeployment(serviceName);
+            case "scale_service" -> diagnosticTools.scaleService(serviceName);
             default -> Map.of("status", "no action taken");
         };
     }

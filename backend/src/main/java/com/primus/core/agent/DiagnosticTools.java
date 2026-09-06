@@ -53,7 +53,7 @@ public class DiagnosticTools {
                     "[INFO] Health check passed"
             );
             case TRANSIENT_GLITCH -> List.of(
-                    "[WARN] Transient network blip detected, no config or deploy changes present",
+                    "[WARN] Transient network blip detected, no infrastructure changes present",
                     "[ERROR] Request failed: connection reset by peer",
                     "[INFO] Retrying request, no pattern of recurrence",
                     "[INFO] No underlying resource exhaustion detected"
