@@ -470,6 +470,10 @@ function App() {
                 </th>
 
                 <th style={{ padding: 12 }}>
+                  Cause
+                </th>
+
+                <th style={{ padding: 12 }}>
                   Actions
                 </th>
               </tr>
@@ -500,8 +504,24 @@ function App() {
                       {incident.status}
                     </td>
 
+                    <td
+                      style={{
+                        padding: 12,
+                        fontSize: 13,
+                        color: "#444",
+                        maxWidth: 260,
+                      }}
+                    >
+                      {incident.rootCauseGuess || (
+                        <span style={{ color: "#999" }}>
+                          Not yet diagnosed
+                        </span>
+                      )}
+                    </td>
+
                     <td style={{ padding: 12 }}>
-                      {incident.status === "OPEN" && (
+                      {(incident.status === "OPEN" ||
+                        incident.status === "REOPENED") && (
                         <button
                           disabled={loading}
                           onClick={() =>
@@ -524,6 +544,8 @@ function App() {
                         >
                           {loading
                             ? "Investigating..."
+                            : incident.status === "REOPENED"
+                            ? "Re-investigate"
                             : "Investigate"}
                         </button>
                       )}
@@ -563,7 +585,7 @@ function App() {
                   {expandedId === incident.id && (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         style={{
                           padding: 18,
                           background: "#fafafa",
