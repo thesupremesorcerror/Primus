@@ -34,8 +34,14 @@ public class PrimusEvalAdapter {
         boolean resolved = result.verified;
 
         if (proposedAction == null && result.approvalRequired) {
-            proposedAction = recommendedCandidateAction(incident.getId());
-            resolved = false;
+            RemediationCandidate recommended = recommendedCandidate(incident.getId());
+            if (recommended != null) {
+                proposedAction = recommended.getActionType();
+                resolved = executeAndVerify(recommended.getActionType(), recommended.getServiceName());
+            } else {
+                proposedAction = "none";
+                resolved = false;
+            }
         }
 
         return new EvalResult("single_agent_primus", incident.getAffectedService(),
@@ -49,8 +55,14 @@ public class PrimusEvalAdapter {
         boolean resolved = result.verified;
 
         if (proposedAction == null && result.approvalRequired) {
-            proposedAction = recommendedCandidateAction(incident.getId());
-            resolved = false;
+            RemediationCandidate recommended = recommendedCandidate(incident.getId());
+            if (recommended != null) {
+                proposedAction = recommended.getActionType();
+                resolved = executeAndVerify(recommended.getActionType(), recommended.getServiceName());
+            } else {
+                proposedAction = "none";
+                resolved = false;
+            }
         }
 
         return new EvalResult("multi_agent_primus", incident.getAffectedService(),
@@ -64,13 +76,30 @@ public class PrimusEvalAdapter {
         return parenIdx == -1 ? actionTaken : actionTaken.substring(0, parenIdx);
     }
 
-    private String recommendedCandidateAction(UUID incidentId) {
+    private RemediationCandidate recommendedCandidate(UUID incidentId) {
         List<RemediationCandidate> candidates = candidateService.getCandidatesForIncident(incidentId);
         return candidates.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getRecommended()))
                 .findFirst()
-                .map(RemediationCandidate::getActionType)
-                .orElse("none");
+                .orElse(null);
+    }
+
+    /**
+     * Executes a remediation action and checks the resulting health, exactly as
+     * IncidentController.approveCandidate() does for a human-approved action.
+     * Used only within the eval harness to auto-approve HIGH-risk candidates so
+     * we can measure whether the underlying diagnosis+remediation decision was
+     * correct, independent of the human-approval gate (which is a deliberate,
+     * separate safety control and not itself part of decision quality).
+     */
+    private boolean executeAndVerify(String actionType, String serviceName) {
+        switch (actionType) {
+            case "restart_service" -> diagnosticTools.restartService(serviceName);
+            case "rollback_deployment" -> diagnosticTools.rollbackDeployment(serviceName);
+            case "scale_service" -> diagnosticTools.scaleService(serviceName);
+            default -> { /* unknown action type: leave service state unchanged */ }
+        }
+        return diagnosticTools.checkServiceHealth(serviceName);
     }
 
     private String scenarioLabel(FaultType faultType) {
