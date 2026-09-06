@@ -8,8 +8,10 @@ import {
   investigateIncident,
   getCandidates,
   approveCandidate,
+  getDiagnostics,
   type Incident,
   type RemediationCandidate,
+  type Diagnostics,
 } from "./api";
 
 function App() {
@@ -21,6 +23,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<RemediationCandidate[]>([]);
+  const [diagnosticsId, setDiagnosticsId] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -54,6 +59,7 @@ function App() {
     setToken(null);
     setIncidents([]);
     setExpandedId(null);
+    setDiagnosticsId(null);
   }
 
   async function handleInvestigate(id: string) {
@@ -85,6 +91,26 @@ function App() {
       setError("Failed to load candidates");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function toggleDiagnostics(incident: Incident) {
+    if (diagnosticsId === incident.id) {
+      setDiagnosticsId(null);
+      setDiagnostics(null);
+      return;
+    }
+
+    setDiagnosticsLoading(true);
+
+    try {
+      const data = await getDiagnostics(incident.id);
+      setDiagnostics(data);
+      setDiagnosticsId(incident.id);
+    } catch (e) {
+      setError("Failed to load diagnostics");
+    } finally {
+      setDiagnosticsLoading(false);
     }
   }
 
@@ -520,66 +546,164 @@ function App() {
                     </td>
 
                     <td style={{ padding: 12 }}>
-                      {(incident.status === "OPEN" ||
-                        incident.status === "REOPENED") && (
-                        <button
-                          disabled={loading}
-                          onClick={() =>
-                            handleInvestigate(
-                              incident.id
-                            )
-                          }
-                          style={{
-                            padding:
-                              "7px 12px",
-                            border: "none",
-                            borderRadius: 6,
-                            background:
-                              "#aa3bff",
-                            color: "#fff",
-                            cursor: loading
-                              ? "not-allowed"
-                              : "pointer",
-                          }}
-                        >
-                          {loading
-                            ? "Investigating..."
-                            : incident.status === "REOPENED"
-                            ? "Re-investigate"
-                            : "Investigate"}
-                        </button>
-                      )}
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        {(incident.status === "OPEN" ||
+                          incident.status === "REOPENED") && (
+                          <button
+                            disabled={loading}
+                            onClick={() =>
+                              handleInvestigate(
+                                incident.id
+                              )
+                            }
+                            style={{
+                              padding:
+                                "7px 12px",
+                              border: "none",
+                              borderRadius: 6,
+                              background:
+                                "#aa3bff",
+                              color: "#fff",
+                              cursor: loading
+                                ? "not-allowed"
+                                : "pointer",
+                            }}
+                          >
+                            {loading
+                              ? "Investigating..."
+                              : incident.status === "REOPENED"
+                              ? "Re-investigate"
+                              : "Investigate"}
+                          </button>
+                        )}
 
-                      {incident.status ===
-                        "AWAITING_APPROVAL" && (
+                        {incident.status ===
+                          "AWAITING_APPROVAL" && (
+                          <button
+                            disabled={loading}
+                            onClick={() =>
+                              toggleCandidates(
+                                incident
+                              )
+                            }
+                            style={{
+                              padding:
+                                "7px 12px",
+                              border:
+                                "1px solid #aa3bff",
+                              borderRadius: 6,
+                              background: "#fff",
+                              color: "#aa3bff",
+                              cursor: loading
+                                ? "not-allowed"
+                                : "pointer",
+                            }}
+                          >
+                            {expandedId ===
+                            incident.id
+                              ? "Hide Options"
+                              : "Review Options"}
+                          </button>
+                        )}
+
                         <button
-                          disabled={loading}
+                          disabled={diagnosticsLoading}
                           onClick={() =>
-                            toggleCandidates(
-                              incident
-                            )
+                            toggleDiagnostics(incident)
                           }
                           style={{
-                            padding:
-                              "7px 12px",
-                            border:
-                              "1px solid #aa3bff",
+                            padding: "7px 12px",
+                            border: "1px solid #666",
                             borderRadius: 6,
                             background: "#fff",
-                            color: "#aa3bff",
-                            cursor: loading
+                            color: "#444",
+                            cursor: diagnosticsLoading
                               ? "not-allowed"
                               : "pointer",
+                            fontSize: 13,
                           }}
                         >
-                          {expandedId ===
-                          incident.id
-                            ? "Hide Options"
-                            : "Review Options"}
+                          {diagnosticsId === incident.id
+                            ? "Hide Diagnostics"
+                            : "View Diagnostics"}
                         </button>
-                      )}
+                      </div>
                     </td>
                   </tr>
+
+                  {/* Diagnostics panel */}
+                  {diagnosticsId === incident.id && diagnostics && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        style={{
+                          padding: 18,
+                          background: "#f5f5fa",
+                        }}
+                      >
+                        <strong>
+                          Live Diagnostics — {diagnostics.serviceName}
+                        </strong>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 12,
+                            marginTop: 12,
+                            marginBottom: 16,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <MetricCard
+                            label="CPU"
+                            value={`${diagnostics.metrics.cpuPercent}%`}
+                          />
+                          <MetricCard
+                            label="Memory"
+                            value={`${diagnostics.metrics.memoryPercent}%`}
+                          />
+                          <MetricCard
+                            label="Error Rate"
+                            value={`${diagnostics.metrics.errorRatePercent}%`}
+                          />
+                          <MetricCard
+                            label="DB Pool Utilization"
+                            value={`${diagnostics.metrics.dbConnectionPoolUtilizationPercent}%`}
+                          />
+                        </div>
+
+                        <strong style={{ fontSize: 13 }}>
+                          Recent Logs
+                        </strong>
+
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 12,
+                            background: "#1e1e2e",
+                            borderRadius: 8,
+                            fontFamily: "monospace",
+                            fontSize: 12.5,
+                            color: "#d4d4e0",
+                            maxHeight: 180,
+                            overflowY: "auto",
+                          }}
+                        >
+                          {diagnostics.logs.map((line, i) => (
+                            <div key={i} style={{ marginBottom: 4 }}>
+                              {line}
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
 
                   {/* Candidates */}
                   {expandedId === incident.id && (
@@ -756,6 +880,27 @@ function App() {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        padding: "10px 16px",
+        background: "#fff",
+        border: "1px solid #ddd",
+        borderRadius: 8,
+        minWidth: 120,
+      }}
+    >
+      <div style={{ fontSize: 11, color: "#888", textTransform: "uppercase" }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 600, marginTop: 2 }}>
+        {value}
       </div>
     </div>
   );

@@ -17,6 +17,17 @@ export interface Incident {
   rootCauseGuess: string | null;
 }
 
+export interface Diagnostics {
+  serviceName: string;
+  metrics: {
+    cpuPercent: number;
+    memoryPercent: number;
+    errorRatePercent: number;
+    dbConnectionPoolUtilizationPercent: number;
+  };
+  logs: string[];
+}
+
 function getToken(): string | null {
   return localStorage.getItem("token");
 }
@@ -55,6 +66,14 @@ export async function investigateIncident(id: string): Promise<Incident> {
     headers: { Authorization: `Bearer ${getToken()}` },
   });
   if (!res.ok) throw new Error("Failed to investigate incident");
+  return res.json();
+}
+
+export async function getDiagnostics(id: string): Promise<Diagnostics> {
+  const res = await fetch(`${API_BASE}/api/incidents/${id}/diagnostics`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch diagnostics");
   return res.json();
 }
 
