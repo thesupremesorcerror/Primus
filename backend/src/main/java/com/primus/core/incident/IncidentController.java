@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -91,6 +92,28 @@ public class IncidentController {
     @GetMapping("/{id}/candidates")
     public List<RemediationCandidate> getCandidates(@PathVariable UUID id) {
         return candidateService.getCandidatesForIncident(id);
+    }
+
+    /**
+     * Returns a live snapshot of metrics and recent logs for the incident's
+     * affected service, using the same DiagnosticTools the agents themselves
+     * call during investigation. Lets the frontend show what evidence the
+     * agents are working from, without inventing or caching separate data.
+     */
+    @GetMapping("/{id}/diagnostics")
+    public Map<String, Object> getDiagnostics(@PathVariable UUID id) {
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Incident not found: " + id));
+
+        String serviceName = incident.getAffectedService();
+        Map<String, Object> metrics = diagnosticTools.getMetrics(serviceName);
+        Map<String, Object> logsResult = diagnosticTools.getLogs(serviceName);
+
+        return Map.of(
+                "serviceName", serviceName,
+                "metrics", metrics,
+                "logs", logsResult.get("recentLogs")
+        );
     }
 
     @PreAuthorize("hasAnyRole('APPROVER', 'ADMIN')")

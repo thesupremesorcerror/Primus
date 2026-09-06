@@ -86,23 +86,23 @@ Primus was first built as a single continuously-looping tool-calling agent (`Age
 
 **Why the change:** evaluation revealed a subtle failure mode in the single-agent design — when its preferred high-risk fix (e.g. `rollback_deployment`) was correctly diagnosed but blocked by the policy engine, the agent's loop kept iterating and settled for an easier, auto-executable medium-risk action (e.g. `restart_service`) instead of surfacing the blocked high-risk fix for approval. The multi-agent `RemediationAgent`, by contrast, proposes exactly one action per run with no fallback loop, which avoids this collapse.
 
-This was **discovered, not assumed** — via a dedicated evaluation harness comparing both systems on identical simulated incidents.
+This was **discovered, not assumed** — via a dedicated evaluation harness comparing both systems on identical simulated incidents. See `EVAL_RESULTS.md` for current numbers and a full writeup of the eval pipeline audit that made those numbers trustworthy.
 
 ---
 
 ## Eval Results
 
-Evaluation ran 5 systems against 10 identical simulated incidents each, repeated across 2 runs.
+Evaluation ran 5 systems against 10 identical simulated incidents each. The eval harness itself was audited and had 4 real measurement bugs found and fixed (cause-unaware fault simulation, a log-text keyword collision, missing ground-truth branches, and an approval-gate distortion) — full writeup in `EVAL_RESULTS.md`. After fixing all four, `remediationAccuracyPct` and `resolvedPct` now agree for every system, meaning the eval is internally consistent.
 
-| System | Remediation Accuracy |
-|---|---|
-| Multi-agent Primus | **50%** (both runs) |
-| Single-agent Primus (`AgentLoop`) | 20% / 40% |
-| Rule-based baseline | 100%* |
+| System | Diagnosis Accuracy | Remediation Accuracy | Resolved |
+|---|---|---|---|
+| rule_based | 100% | 100% | 100% |
+| llm_no_rag | 20% | 40% | 40% |
+| llm_rag | 100% | 30% | 30% |
+| single_agent_primus | 40% | 80% | 80% |
+| multi_agent_primus | 90% | 60% | 60% |
 
-\* *Excluded as a valid comparison point — its heuristic and the eval's ground-truth scorer use an identical substring check, making the result tautological rather than a genuine measure of reasoning quality.*
-
-**Known limitation in the eval metric:** the "resolved" outcome conflates *correct diagnosis* with *immediate execution*. Multi-agent's conservative behavior (declining to force through a blocked high-risk fix) is scored the same as an outright wrong diagnosis, which likely undercounts its real-world usefulness. Full findings in `EVAL_RESULTS.md`.
+**Key finding:** Multi-agent Primus has the strongest diagnosis accuracy (90%) but its remediation agent sometimes proposes `restart_service` instead of the objectively-correct `scale_service` on connection-pool-exhaustion cases — a genuine LLM judgment limitation on an ambiguous case (both are plausible real-world responses to "connection" symptoms), not a measurement error. Full analysis in `EVAL_RESULTS.md`.
 
 ---
 
@@ -136,6 +136,5 @@ Core pipeline (detection → diagnosis → RAG → tool-agent → multi-agent or
 
 **In progress:**
 - Live deployment (Render / Fly.io / Railway)
-- Cause-aware fault simulation (remediation currently heals unconditionally regardless of whether the executed action matches the actual injected fault — a known weakness of the "resolved" metric above)
 - Secrets hygiene (moving off plaintext env vars)
-- Exponential backoff on repeated Gemini API failures (a fixed-interval throttle already exists)
+- Exponential backoff on repeated Gemini API failures (a fixed-interval throttle already exists; note that a *daily quota* exhaustion, as opposed to a rate limit, can't be fixed by backoff alone)
