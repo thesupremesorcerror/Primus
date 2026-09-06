@@ -13,14 +13,15 @@ public class FaultSimulatorController {
     }
 
     @PostMapping("/kill/{serviceName}")
-    public String kill(@PathVariable String serviceName) {
-        faultSimulator.setHealthy(serviceName, false);
-        return serviceName + " marked as DOWN";
+    public String kill(@PathVariable String serviceName,
+                       @RequestParam(required = false) FaultType faultType) {
+        FaultType assigned = faultSimulator.kill(serviceName, faultType);
+        return serviceName + " marked as DOWN (" + assigned + ")";
     }
 
     @PostMapping("/heal/{serviceName}")
     public String heal(@PathVariable String serviceName) {
-        faultSimulator.setHealthy(serviceName, true);
+        faultSimulator.heal(serviceName);
         return serviceName + " marked as HEALTHY";
     }
 }

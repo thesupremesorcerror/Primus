@@ -2,10 +2,13 @@ package com.primus.core.eval;
 
 import com.primus.core.incident.Incident;
 import com.primus.core.incident.IncidentRepository;
+import com.primus.core.observability.FaultSimulator;
+import com.primus.core.observability.FaultType;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiFunction;
 
 @Service
 public class EvaluationService {
@@ -15,17 +18,20 @@ public class EvaluationService {
     private static final int RUNS_PER_SYSTEM = 10;
 
     private final IncidentRepository incidentRepository;
+    private final FaultSimulator faultSimulator;
     private final RuleBasedDiagnoser ruleBasedDiagnoser;
     private final LlmNoRagDiagnoser llmNoRagDiagnoser;
     private final LlmRagDiagnoser llmRagDiagnoser;
     private final PrimusEvalAdapter primusEvalAdapter;
 
     public EvaluationService(IncidentRepository incidentRepository,
+                             FaultSimulator faultSimulator,
                              RuleBasedDiagnoser ruleBasedDiagnoser,
                              LlmNoRagDiagnoser llmNoRagDiagnoser,
                              LlmRagDiagnoser llmRagDiagnoser,
                              PrimusEvalAdapter primusEvalAdapter) {
         this.incidentRepository = incidentRepository;
+        this.faultSimulator = faultSimulator;
         this.ruleBasedDiagnoser = ruleBasedDiagnoser;
         this.llmNoRagDiagnoser = llmNoRagDiagnoser;
         this.llmRagDiagnoser = llmRagDiagnoser;
@@ -35,33 +41,42 @@ public class EvaluationService {
     public List<EvalSummary> runFullEvaluation() {
         List<EvalSummary> summaries = new ArrayList<>();
 
-        summaries.add(runSystem("rule_based", this::runRuleBased));
-        summaries.add(runSystem("llm_no_rag", this::runLlmNoRag));
-        summaries.add(runSystem("llm_rag", this::runLlmRag));
-        summaries.add(runSystem("single_agent_primus", this::runSingleAgent));
-        summaries.add(runSystem("multi_agent_primus", this::runMultiAgent));
+        summaries.add(runSystem("rule_based", (incident, fault) -> runRuleBased(incident)));
+        summaries.add(runSystem("llm_no_rag", (incident, fault) -> runLlmNoRag(incident)));
+        summaries.add(runSystem("llm_rag", (incident, fault) -> runLlmRag(incident)));
+        summaries.add(runSystem("single_agent_primus", primusEvalAdapter::runSingleAgent));
+        summaries.add(runSystem("multi_agent_primus", primusEvalAdapter::runMultiAgent));
 
         return summaries;
     }
 
-    private EvalSummary runSystem(String name, java.util.function.Function<Incident, EvalResult> runner) {
+    private EvalSummary runSystem(String name, BiFunction<Incident, FaultType, EvalResult> runner) {
         List<EvalResult> results = new ArrayList<>();
         for (int i = 0; i < RUNS_PER_SYSTEM; i++) {
             String service = SERVICES.get(i % SERVICES.size());
+
+            // Inject a real, known fault BEFORE running the diagnoser, and capture
+            // it as ground truth up front — the agent's own remediation may heal
+            // the service mid-run, so querying state afterward would be wrong.
+            FaultType groundTruth = faultSimulator.kill(service);
+
             Incident incident = createEvalIncident(name, service);
             long start = System.currentTimeMillis();
-            EvalResult result = runWithRetry(runner, incident, name, service);
+            EvalResult result = runWithRetry(runner, incident, groundTruth, name, service);
             long elapsed = System.currentTimeMillis() - start;
             results.add(withLatency(result, elapsed));
+
+            faultSimulator.heal(service); // reset so the next run starts clean
         }
         return EvalSummary.from(name, results);
     }
 
-    private EvalResult runWithRetry(java.util.function.Function<Incident, EvalResult> runner,
-                                    Incident incident, String systemName, String serviceName) {
+    private EvalResult runWithRetry(BiFunction<Incident, FaultType, EvalResult> runner,
+                                    Incident incident, FaultType groundTruth,
+                                    String systemName, String serviceName) {
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                return runner.apply(incident);
+                return runner.apply(incident, groundTruth);
             } catch (Exception e) {
                 System.out.println("[EVAL] " + systemName + " attempt " + attempt + " failed for "
                         + serviceName + ": " + e.getMessage());
@@ -99,13 +114,5 @@ public class EvaluationService {
 
     private EvalResult runLlmRag(Incident incident) {
         return llmRagDiagnoser.diagnose(incident.getTitle(), incident.getSeverity(), incident.getAffectedService());
-    }
-
-    private EvalResult runSingleAgent(Incident incident) {
-        return primusEvalAdapter.runSingleAgent(incident);
-    }
-
-    private EvalResult runMultiAgent(Incident incident) {
-        return primusEvalAdapter.runMultiAgent(incident);
     }
 }
