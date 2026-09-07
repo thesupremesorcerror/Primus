@@ -8,6 +8,7 @@ import {
   investigateIncident,
   getCandidates,
   approveCandidate,
+  rejectCandidate,
   getDiagnostics,
   type Incident,
   type RemediationCandidate,
@@ -261,6 +262,20 @@ function App() {
       await loadIncidents();
     } catch (e) {
       setError("Approval failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleReject(incidentId: string, candidateId: string) {
+    setLoading(true);
+
+    try {
+      await rejectCandidate(incidentId, candidateId);
+      setExpandedId(null);
+      await loadIncidents();
+    } catch (e) {
+      setError("Rejection failed");
     } finally {
       setLoading(false);
     }
@@ -897,22 +912,40 @@ function App() {
                                     {c.rationale}
                                   </td>
                                   <td style={{ padding: 8 }}>
-                                    <button
-                                      disabled={loading}
-                                      onClick={() => handleApprove(incident.id, c.id)}
-                                      style={{
-                                        padding: "6px 12px",
-                                        border: "none",
-                                        borderRadius: 6,
-                                        background: COLORS.green,
-                                        color: "#05270f",
-                                        fontWeight: 600,
-                                        cursor: loading ? "not-allowed" : "pointer",
-                                        fontSize: 12.5,
-                                      }}
-                                    >
-                                      Approve
-                                    </button>
+                                    <div style={{ display: "flex", gap: 6 }}>
+                                      <button
+                                        disabled={loading}
+                                        onClick={() => handleApprove(incident.id, c.id)}
+                                        style={{
+                                          padding: "6px 12px",
+                                          border: "none",
+                                          borderRadius: 6,
+                                          background: COLORS.green,
+                                          color: "#05270f",
+                                          fontWeight: 600,
+                                          cursor: loading ? "not-allowed" : "pointer",
+                                          fontSize: 12.5,
+                                        }}
+                                      >
+                                        Approve
+                                      </button>
+                                      <button
+                                        disabled={loading}
+                                        onClick={() => handleReject(incident.id, c.id)}
+                                        style={{
+                                          padding: "6px 12px",
+                                          border: `1px solid ${COLORS.red}`,
+                                          borderRadius: 6,
+                                          background: "transparent",
+                                          color: COLORS.red,
+                                          fontWeight: 600,
+                                          cursor: loading ? "not-allowed" : "pointer",
+                                          fontSize: 12.5,
+                                        }}
+                                      >
+                                        Reject
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               ))}

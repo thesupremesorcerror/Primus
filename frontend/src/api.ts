@@ -105,3 +105,12 @@ export async function approveCandidate(incidentId: string, candidateId: string):
   if (!res.ok) throw new Error("Failed to approve candidate");
   return res.json();
 }
+
+export async function rejectCandidate(incidentId: string, candidateId: string): Promise<Incident> {
+  const res = await fetch(`${API_BASE}/api/incidents/${incidentId}/reject/${candidateId}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Failed to reject candidate");
+  return res.json();
+}
