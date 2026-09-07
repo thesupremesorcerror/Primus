@@ -106,6 +106,35 @@ export async function approveCandidate(incidentId: string, candidateId: string):
   return res.json();
 }
 
+export interface EvalRunResult {
+  systemName: string;
+  serviceName: string;
+  observedScenario: string;
+  diagnosis: string;
+  proposedAction: string;
+  resolved: boolean;
+  llmCallCount: number;
+  latencyMs: number;
+}
+
+export interface EvalSummary {
+  systemName: string;
+  totalRuns: number;
+  diagnosisAccuracyPct: number;
+  remediationAccuracyPct: number;
+  resolvedPct: number;
+  runs: EvalRunResult[];
+}
+
+export async function runEvaluation(): Promise<EvalSummary[]> {
+  const res = await fetch(`${API_BASE}/api/eval/run`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Failed to run evaluation");
+  return res.json();
+}
+
 export async function rejectCandidate(incidentId: string, candidateId: string): Promise<Incident> {
   const res = await fetch(`${API_BASE}/api/incidents/${incidentId}/reject/${candidateId}`, {
     method: "POST",

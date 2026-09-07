@@ -10,9 +10,11 @@ import {
   approveCandidate,
   rejectCandidate,
   getDiagnostics,
+  runEvaluation,
   type Incident,
   type RemediationCandidate,
   type Diagnostics,
+  type EvalSummary,
 } from "./api";
 
 const COLORS = {
@@ -163,6 +165,16 @@ function App() {
   const [diagnosticsId, setDiagnosticsId] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [view, setView] = useState<"command" | "research">("command");
+  const [whyId, setWhyId] = useState<string | null>(null);
+  const [beforeAfter, setBeforeAfter] = useState<{
+    incidentId: string;
+    action: string;
+    before: Diagnostics;
+    after: Diagnostics;
+  } | null>(null);
+  const [evalResults, setEvalResults] = useState<EvalSummary[] | null>(null);
+  const [evalLoading, setEvalLoading] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -253,17 +265,34 @@ function App() {
     }
   }
 
-  async function handleApprove(incidentId: string, candidateId: string) {
+  async function handleApprove(incidentId: string, candidateId: string, actionType: string) {
     setLoading(true);
 
     try {
+      const before = await getDiagnostics(incidentId);
       await approveCandidate(incidentId, candidateId);
+      const after = await getDiagnostics(incidentId);
+      setBeforeAfter({ incidentId, action: actionType, before, after });
       setExpandedId(null);
       await loadIncidents();
     } catch (e) {
       setError("Approval failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleRunEvaluation() {
+    setEvalLoading(true);
+    setError("");
+
+    try {
+      const data = await runEvaluation();
+      setEvalResults(data);
+    } catch (e) {
+      setError("Evaluation run failed");
+    } finally {
+      setEvalLoading(false);
     }
   }
 
@@ -508,17 +537,36 @@ function App() {
           </div>
 
           <div
+            onClick={() => setView("command")}
             style={{
               padding: "10px 12px",
               borderRadius: 8,
-              background: `${COLORS.accent}18`,
-              border: `1px solid ${COLORS.accent}44`,
-              color: COLORS.accent,
+              background: view === "command" ? `${COLORS.accent}18` : "transparent",
+              border: `1px solid ${view === "command" ? COLORS.accent + "44" : "transparent"}`,
+              color: view === "command" ? COLORS.accent : COLORS.textDim,
               fontSize: 13,
               fontWeight: 600,
+              cursor: "pointer",
+              marginBottom: 8,
             }}
           >
             Command Center
+          </div>
+
+          <div
+            onClick={() => setView("research")}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              background: view === "research" ? `${COLORS.accent}18` : "transparent",
+              border: `1px solid ${view === "research" ? COLORS.accent + "44" : "transparent"}`,
+              color: view === "research" ? COLORS.accent : COLORS.textDim,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Research / Eval
           </div>
         </div>
 
@@ -623,6 +671,77 @@ function App() {
           </p>
         )}
 
+        {beforeAfter && (
+          <div
+            style={{
+              background: COLORS.panelSolid,
+              border: `1px solid ${COLORS.green}44`,
+              borderRadius: 12,
+              padding: "16px 20px",
+              marginBottom: 24,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 12,
+              }}
+            >
+              <strong style={{ fontSize: 13 }}>
+                Execution Result — {beforeAfter.action} on {beforeAfter.before.serviceName}
+              </strong>
+              <button
+                onClick={() => setBeforeAfter(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: COLORS.textDim,
+                  cursor: "pointer",
+                  fontSize: 16,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontSize: 11, color: COLORS.textDim, marginBottom: 8 }}>
+                  BEFORE
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <MetricCard label="CPU" value={`${beforeAfter.before.metrics.cpuPercent}%`} />
+                  <MetricCard
+                    label="Error Rate"
+                    value={`${beforeAfter.before.metrics.errorRatePercent}%`}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", fontSize: 20, color: COLORS.textDim }}>
+                →
+              </div>
+
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontSize: 11, color: COLORS.green, marginBottom: 8 }}>
+                  AFTER
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <MetricCard label="CPU" value={`${beforeAfter.after.metrics.cpuPercent}%`} />
+                  <MetricCard
+                    label="Error Rate"
+                    value={`${beforeAfter.after.metrics.errorRatePercent}%`}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {view === "command" && (
+        <>
         {/* Stat cards */}
         <div style={{ display: "flex", gap: 14, marginBottom: 24, flexWrap: "wrap" }}>
           <StatCard label="Total Incidents" value={incidents.length} color={COLORS.text} />
@@ -892,8 +1011,8 @@ function App() {
 
                             <tbody>
                               {candidates.map((c) => (
+                                <Fragment key={c.id}>
                                 <tr
-                                  key={c.id}
                                   style={{
                                     background: c.recommended ? `${COLORS.green}14` : undefined,
                                     borderBottom: `1px solid ${COLORS.border}`,
@@ -915,7 +1034,25 @@ function App() {
                                     <div style={{ display: "flex", gap: 6 }}>
                                       <button
                                         disabled={loading}
-                                        onClick={() => handleApprove(incident.id, c.id)}
+                                        onClick={() =>
+                                          setWhyId(whyId === c.id ? null : c.id)
+                                        }
+                                        style={{
+                                          padding: "6px 10px",
+                                          border: `1px solid ${COLORS.accent}`,
+                                          borderRadius: 6,
+                                          background: "transparent",
+                                          color: COLORS.accent,
+                                          fontWeight: 600,
+                                          cursor: "pointer",
+                                          fontSize: 12.5,
+                                        }}
+                                      >
+                                        Why?
+                                      </button>
+                                      <button
+                                        disabled={loading}
+                                        onClick={() => handleApprove(incident.id, c.id, c.actionType)}
                                         style={{
                                           padding: "6px 12px",
                                           border: "none",
@@ -948,6 +1085,44 @@ function App() {
                                     </div>
                                   </td>
                                 </tr>
+
+                                {whyId === c.id && (
+                                  <tr>
+                                    <td colSpan={5} style={{ padding: "4px 8px 14px" }}>
+                                      <div
+                                        style={{
+                                          padding: 14,
+                                          background: "#0d1119",
+                                          border: `1px solid ${COLORS.borderLight}`,
+                                          borderRadius: 8,
+                                          fontSize: 12.5,
+                                          lineHeight: 1.7,
+                                        }}
+                                      >
+                                        <div style={{ color: COLORS.accent, fontWeight: 600, marginBottom: 6 }}>
+                                          WHY DID PRIMUS CHOOSE {c.actionType.toUpperCase()}?
+                                        </div>
+                                        <div>
+                                          <strong>Diagnosis:</strong>{" "}
+                                          {incident.rootCauseGuess || "Not yet diagnosed"}
+                                        </div>
+                                        <div>
+                                          <strong>Rationale:</strong> {c.rationale}
+                                        </div>
+                                        <div>
+                                          <strong>Expected recovery:</strong> {c.expectedRecoveryPct}%
+                                        </div>
+                                        <div>
+                                          <strong>Risk classification:</strong> {c.riskLevel}
+                                          {c.riskLevel === "HIGH"
+                                            ? " — PolicyEngine requires human approval before this can execute."
+                                            : " — eligible for automatic execution under current policy."}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                                </Fragment>
                               ))}
                             </tbody>
                           </table>
@@ -960,6 +1135,125 @@ function App() {
             </table>
           </div>
         </div>
+        </>
+        )}
+
+        {view === "research" && (
+          <div>
+            <div
+              style={{
+                background: COLORS.panelSolid,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 12,
+                padding: "18px 20px",
+                marginBottom: 24,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 600 }}>
+                    Single-Agent vs Multi-Agent Evaluation
+                  </div>
+                  <div style={{ fontSize: 13, color: COLORS.textDim, marginTop: 4 }}>
+                    Runs 5 systems against 10 identical simulated incidents each —
+                    rule-based, LLM (no RAG), LLM+RAG, single-agent Primus, multi-agent
+                    Primus.
+                  </div>
+                </div>
+
+                <button
+                  disabled={evalLoading}
+                  onClick={handleRunEvaluation}
+                  style={{
+                    padding: "10px 18px",
+                    border: "none",
+                    borderRadius: 8,
+                    background: COLORS.accent,
+                    color: "#04222a",
+                    fontWeight: 600,
+                    cursor: evalLoading ? "not-allowed" : "pointer",
+                    fontSize: 13,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {evalLoading ? "Running (may take a few minutes)..." : "Run Evaluation"}
+                </button>
+              </div>
+            </div>
+
+            {evalResults && (
+              <div
+                style={{
+                  background: COLORS.panelSolid,
+                  border: `1px solid ${COLORS.border}`,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${COLORS.border}`, textAlign: "left" }}>
+                      <th style={{ padding: 14, fontSize: 12, color: COLORS.textDim }}>SYSTEM</th>
+                      <th style={{ padding: 14, fontSize: 12, color: COLORS.textDim }}>RUNS</th>
+                      <th style={{ padding: 14, fontSize: 12, color: COLORS.textDim }}>
+                        DIAGNOSIS ACCURACY
+                      </th>
+                      <th style={{ padding: 14, fontSize: 12, color: COLORS.textDim }}>
+                        REMEDIATION ACCURACY
+                      </th>
+                      <th style={{ padding: 14, fontSize: 12, color: COLORS.textDim }}>
+                        RESOLVED
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {evalResults.map((s) => (
+                      <tr key={s.systemName} style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                        <td style={{ padding: 14, fontSize: 13, fontWeight: 600 }}>
+                          {s.systemName}
+                        </td>
+                        <td style={{ padding: 14, fontSize: 13, color: COLORS.textDim }}>
+                          {s.totalRuns}
+                        </td>
+                        <td style={{ padding: 14 }}>
+                          <Badge
+                            label={`${s.diagnosisAccuracyPct}%`}
+                            color={s.diagnosisAccuracyPct >= 70 ? COLORS.green : COLORS.orange}
+                          />
+                        </td>
+                        <td style={{ padding: 14 }}>
+                          <Badge
+                            label={`${s.remediationAccuracyPct}%`}
+                            color={s.remediationAccuracyPct >= 70 ? COLORS.green : COLORS.orange}
+                          />
+                        </td>
+                        <td style={{ padding: 14 }}>
+                          <Badge
+                            label={`${s.resolvedPct}%`}
+                            color={s.resolvedPct >= 70 ? COLORS.green : COLORS.orange}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!evalResults && !evalLoading && (
+              <div style={{ color: COLORS.textDim, fontSize: 13, textAlign: "center", padding: 40 }}>
+                Click "Run Evaluation" to compare single-agent vs multi-agent performance
+                against identical simulated incidents.
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
