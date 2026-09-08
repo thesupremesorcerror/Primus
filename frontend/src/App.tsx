@@ -158,7 +158,7 @@ function App() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [systemOnline, setSystemOnline] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<RemediationCandidate[]>([]);
@@ -213,8 +213,21 @@ function App() {
     setDiagnosticsId(null);
   }
 
+  function isLoading(id: string): boolean {
+    return loadingIds.has(id);
+  }
+
+  function setLoadingFor(id: string, value: boolean) {
+    setLoadingIds((prev) => {
+      const next = new Set(prev);
+      if (value) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
   async function handleInvestigate(id: string) {
-    setLoading(true);
+    setLoadingFor(id, true);
 
     try {
       await investigateIncident(id);
@@ -222,7 +235,7 @@ function App() {
     } catch (e) {
       setError("Investigation failed");
     } finally {
-      setLoading(false);
+      setLoadingFor(id, false);
     }
   }
 
@@ -232,7 +245,7 @@ function App() {
       return;
     }
 
-    setLoading(true);
+    setLoadingFor(incident.id, true);
 
     try {
       const data = await getCandidates(incident.id);
@@ -241,7 +254,7 @@ function App() {
     } catch (e) {
       setError("Failed to load candidates");
     } finally {
-      setLoading(false);
+      setLoadingFor(incident.id, false);
     }
   }
 
@@ -266,7 +279,7 @@ function App() {
   }
 
   async function handleApprove(incidentId: string, candidateId: string, actionType: string) {
-    setLoading(true);
+    setLoadingFor(incidentId, true);
 
     try {
       const before = await getDiagnostics(incidentId);
@@ -278,7 +291,7 @@ function App() {
     } catch (e) {
       setError("Approval failed");
     } finally {
-      setLoading(false);
+      setLoadingFor(incidentId, false);
     }
   }
 
@@ -297,7 +310,7 @@ function App() {
   }
 
   async function handleReject(incidentId: string, candidateId: string) {
-    setLoading(true);
+    setLoadingFor(incidentId, true);
 
     try {
       await rejectCandidate(incidentId, candidateId);
@@ -306,7 +319,7 @@ function App() {
     } catch (e) {
       setError("Rejection failed");
     } finally {
-      setLoading(false);
+      setLoadingFor(incidentId, false);
     }
   }
 
@@ -861,7 +874,7 @@ function App() {
                           {(incident.status === "OPEN" ||
                             incident.status === "REOPENED") && (
                             <button
-                              disabled={loading}
+                              disabled={isLoading(incident.id)}
                               onClick={() => handleInvestigate(incident.id)}
                               style={{
                                 padding: "7px 12px",
@@ -870,11 +883,11 @@ function App() {
                                 background: COLORS.accent,
                                 color: "#04222a",
                                 fontWeight: 600,
-                                cursor: loading ? "not-allowed" : "pointer",
+                                cursor: isLoading(incident.id) ? "not-allowed" : "pointer",
                                 fontSize: 12.5,
                               }}
                             >
-                              {loading
+                              {isLoading(incident.id)
                                 ? "Investigating..."
                                 : incident.status === "REOPENED"
                                 ? "Re-investigate"
@@ -884,7 +897,7 @@ function App() {
 
                           {incident.status === "AWAITING_APPROVAL" && (
                             <button
-                              disabled={loading}
+                              disabled={isLoading(incident.id)}
                               onClick={() => toggleCandidates(incident)}
                               style={{
                                 padding: "7px 12px",
@@ -892,7 +905,7 @@ function App() {
                                 borderRadius: 6,
                                 background: "transparent",
                                 color: COLORS.orange,
-                                cursor: loading ? "not-allowed" : "pointer",
+                                cursor: isLoading(incident.id) ? "not-allowed" : "pointer",
                                 fontSize: 12.5,
                               }}
                             >
@@ -1033,7 +1046,7 @@ function App() {
                                   <td style={{ padding: 8 }}>
                                     <div style={{ display: "flex", gap: 6 }}>
                                       <button
-                                        disabled={loading}
+                                        disabled={isLoading(incident.id)}
                                         onClick={() =>
                                           setWhyId(whyId === c.id ? null : c.id)
                                         }
@@ -1051,7 +1064,7 @@ function App() {
                                         Why?
                                       </button>
                                       <button
-                                        disabled={loading}
+                                        disabled={isLoading(incident.id)}
                                         onClick={() => handleApprove(incident.id, c.id, c.actionType)}
                                         style={{
                                           padding: "6px 12px",
@@ -1060,14 +1073,14 @@ function App() {
                                           background: COLORS.green,
                                           color: "#05270f",
                                           fontWeight: 600,
-                                          cursor: loading ? "not-allowed" : "pointer",
+                                          cursor: isLoading(incident.id) ? "not-allowed" : "pointer",
                                           fontSize: 12.5,
                                         }}
                                       >
                                         Approve
                                       </button>
                                       <button
-                                        disabled={loading}
+                                        disabled={isLoading(incident.id)}
                                         onClick={() => handleReject(incident.id, c.id)}
                                         style={{
                                           padding: "6px 12px",
@@ -1076,7 +1089,7 @@ function App() {
                                           background: "transparent",
                                           color: COLORS.red,
                                           fontWeight: 600,
-                                          cursor: loading ? "not-allowed" : "pointer",
+                                          cursor: isLoading(incident.id) ? "not-allowed" : "pointer",
                                           fontSize: 12.5,
                                         }}
                                       >
