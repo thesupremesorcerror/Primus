@@ -1,9 +1,11 @@
 package com.primus.core.diagnosis;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.List;
 import java.util.Map;
@@ -12,6 +14,9 @@ import java.util.Map;
 public class GeminiClient {
 
     private static final long MIN_INTERVAL_MS = 4500; // ~13 req/min, safely under 15/min free tier cap
+    private static final int MAX_RETRIES = 3;
+    private static final long INITIAL_BACKOFF_MS = 1000;
+
     private volatile long lastCallTime = 0;
 
     private final RestClient restClient;
@@ -56,15 +61,49 @@ public class GeminiClient {
         lastCallTime = System.currentTimeMillis();
     }
 
+    /**
+     * Calls Gemini with the existing fixed-interval pacing throttle (keeps
+     * us under the free-tier requests-per-minute cap), plus exponential
+     * backoff retry specifically for transient failures: 429 (rate limit
+     * burst, distinct from a daily quota exhaustion which returns the same
+     * code but won't be fixed by retrying) and 503 (upstream temporarily
+     * unavailable). Other error codes (e.g. 400 bad request, 401/403 auth)
+     * are not retried since retrying won't help.
+     */
     private Map<String, Object> callGemini(Map<String, Object> requestBody) {
-        throttle();
-        return restClient.post()
-                .uri("/models/gemini-3.1-flash-lite:generateContent")
-                .header("X-goog-api-key", apiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(requestBody)
-                .retrieve()
-                .body(Map.class);
+        int attempt = 0;
+        long backoff = INITIAL_BACKOFF_MS;
+
+        while (true) {
+            throttle();
+            try {
+                return restClient.post()
+                        .uri("/models/gemini-3.1-flash-lite:generateContent")
+                        .header("X-goog-api-key", apiKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(requestBody)
+                        .retrieve()
+                        .body(Map.class);
+            } catch (RestClientResponseException e) {
+                HttpStatusCode status = e.getStatusCode();
+                boolean retryable = status.value() == 429 || status.value() == 503;
+
+                if (!retryable || attempt >= MAX_RETRIES) {
+                    throw e;
+                }
+
+                attempt++;
+                System.out.println("[GEMINI] " + status.value() + " on attempt " + attempt
+                        + ", backing off " + backoff + "ms before retry");
+                try {
+                    Thread.sleep(backoff);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+                backoff *= 2; // exponential: 1s, 2s, 4s
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
