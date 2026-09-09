@@ -11,10 +11,16 @@ import {
   rejectCandidate,
   getDiagnostics,
   runEvaluation,
+  getEvidence,
+  searchMemory,
+  getServiceHealth,
   type Incident,
   type RemediationCandidate,
   type Diagnostics,
   type EvalSummary,
+  type AgentFinding,
+  type MemorySearchResult,
+  type ServiceHealth,
 } from "./api";
 
 const COLORS = {
@@ -165,8 +171,16 @@ function App() {
   const [diagnosticsId, setDiagnosticsId] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
-  const [view, setView] = useState<"command" | "research">("command");
+  const [view, setView] = useState<"command" | "research" | "memory" | "services">("command");
   const [whyId, setWhyId] = useState<string | null>(null);
+  const [evidenceId, setEvidenceId] = useState<string | null>(null);
+  const [evidence, setEvidence] = useState<AgentFinding[] | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [memoryQuery, setMemoryQuery] = useState("");
+  const [memoryResults, setMemoryResults] = useState<MemorySearchResult[] | null>(null);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [services, setServices] = useState<ServiceHealth[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
   const [beforeAfter, setBeforeAfter] = useState<{
     incidentId: string;
     action: string;
@@ -308,6 +322,60 @@ function App() {
       setEvalLoading(false);
     }
   }
+
+  async function toggleEvidence(incident: Incident) {
+    if (evidenceId === incident.id) {
+      setEvidenceId(null);
+      setEvidence(null);
+      return;
+    }
+
+    setEvidenceLoading(true);
+
+    try {
+      const data = await getEvidence(incident.id);
+      setEvidence(data);
+      setEvidenceId(incident.id);
+    } catch (e) {
+      setError("Failed to load evidence");
+    } finally {
+      setEvidenceLoading(false);
+    }
+  }
+
+  async function handleSearchMemory() {
+    if (!memoryQuery.trim()) return;
+    setMemoryLoading(true);
+    setError("");
+
+    try {
+      const data = await searchMemory(memoryQuery);
+      setMemoryResults(data);
+    } catch (e) {
+      setError("Memory search failed");
+    } finally {
+      setMemoryLoading(false);
+    }
+  }
+
+  async function loadServices() {
+    setServicesLoading(true);
+
+    try {
+      const data = await getServiceHealth();
+      setServices(data);
+    } catch (e) {
+      setError("Failed to load service health");
+    } finally {
+      setServicesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (token && view === "services") {
+      loadServices();
+    }
+  }, [token, view]);
 
   async function handleReject(incidentId: string, candidateId: string) {
     setLoadingFor(incidentId, true);
@@ -577,9 +645,43 @@ function App() {
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
+              marginBottom: 8,
             }}
           >
             Research / Eval
+          </div>
+
+          <div
+            onClick={() => setView("memory")}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              background: view === "memory" ? `${COLORS.accent}18` : "transparent",
+              border: `1px solid ${view === "memory" ? COLORS.accent + "44" : "transparent"}`,
+              color: view === "memory" ? COLORS.accent : COLORS.textDim,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              marginBottom: 8,
+            }}
+          >
+            Incident Memory
+          </div>
+
+          <div
+            onClick={() => setView("services")}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 8,
+              background: view === "services" ? `${COLORS.accent}18` : "transparent",
+              border: `1px solid ${view === "services" ? COLORS.accent + "44" : "transparent"}`,
+              color: view === "services" ? COLORS.accent : COLORS.textDim,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Infrastructure Map
           </div>
         </div>
 
@@ -928,6 +1030,22 @@ function App() {
                           >
                             {diagnosticsId === incident.id ? "Hide Diagnostics" : "Diagnostics"}
                           </button>
+
+                          <button
+                            disabled={evidenceLoading}
+                            onClick={() => toggleEvidence(incident)}
+                            style={{
+                              padding: "7px 12px",
+                              border: `1px solid ${COLORS.purple}`,
+                              borderRadius: 6,
+                              background: "transparent",
+                              color: COLORS.purple,
+                              cursor: evidenceLoading ? "not-allowed" : "pointer",
+                              fontSize: 12.5,
+                            }}
+                          >
+                            {evidenceId === incident.id ? "Hide Evidence" : "Evidence"}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -988,6 +1106,83 @@ function App() {
                               </div>
                             ))}
                           </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* Evidence panel */}
+                    {evidenceId === incident.id && evidence && (
+                      <tr>
+                        <td colSpan={6} style={{ padding: 18, background: "#0d1119" }}>
+                          <strong style={{ fontSize: 13 }}>
+                            Evidence Explorer — what each agent found
+                          </strong>
+
+                          {evidence.length === 0 ? (
+                            <div style={{ color: COLORS.textDim, fontSize: 13, marginTop: 10 }}>
+                              No evidence recorded yet — investigate this incident first.
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+                              {evidence.map((f, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    padding: 12,
+                                    background: COLORS.panelSolid,
+                                    border: `1px solid ${COLORS.border}`,
+                                    borderRadius: 8,
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      justifyContent: "space-between",
+                                      alignItems: "center",
+                                      marginBottom: 6,
+                                    }}
+                                  >
+                                    <span style={{ fontWeight: 600, color: COLORS.purple, fontSize: 13 }}>
+                                      {f.agent}
+                                    </span>
+                                    <Badge
+                                      label={`${Math.round(f.confidence * 100)}% confidence`}
+                                      color={f.confidence >= 0.7 ? COLORS.green : COLORS.orange}
+                                    />
+                                  </div>
+
+                                  <div style={{ fontSize: 12.5, color: COLORS.text, marginBottom: 8 }}>
+                                    {f.summary}
+                                  </div>
+
+                                  {f.evidence.length > 0 && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                      {f.evidence.map((e, j) => (
+                                        <div
+                                          key={j}
+                                          style={{
+                                            fontSize: 12,
+                                            color: COLORS.textDim,
+                                            paddingLeft: 10,
+                                            borderLeft: `2px solid ${COLORS.borderLight}`,
+                                          }}
+                                        >
+                                          <strong>{e.type}:</strong> {e.detail}{" "}
+                                          <span style={{ opacity: 0.7 }}>({e.source})</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  {f.toolsCalled.length > 0 && (
+                                    <div style={{ fontSize: 11, color: COLORS.textDim, marginTop: 6 }}>
+                                      Tools called: {f.toolsCalled.join(", ")}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -1265,6 +1460,166 @@ function App() {
                 against identical simulated incidents.
               </div>
             )}
+          </div>
+        )}
+
+        {view === "memory" && (
+          <div>
+            <div
+              style={{
+                background: COLORS.panelSolid,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: 12,
+                padding: "18px 20px",
+                marginBottom: 24,
+              }}
+            >
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>
+                Incident Memory Explorer
+              </div>
+              <div style={{ fontSize: 13, color: COLORS.textDim, marginBottom: 14 }}>
+                Search past resolved incidents by similarity — powered by the same
+                embedding-based retrieval RagAgent uses during live investigations.
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  value={memoryQuery}
+                  onChange={(e) => setMemoryQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchMemory()}
+                  placeholder="e.g. payment-api connection pool exhaustion"
+                  style={{
+                    flex: 1,
+                    padding: "10px 14px",
+                    borderRadius: 8,
+                    border: `1px solid ${COLORS.borderLight}`,
+                    background: "#0d1119",
+                    color: COLORS.text,
+                    fontSize: 13,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  disabled={memoryLoading}
+                  onClick={handleSearchMemory}
+                  style={{
+                    padding: "10px 18px",
+                    border: "none",
+                    borderRadius: 8,
+                    background: COLORS.accent,
+                    color: "#04222a",
+                    fontWeight: 600,
+                    cursor: memoryLoading ? "not-allowed" : "pointer",
+                    fontSize: 13,
+                  }}
+                >
+                  {memoryLoading ? "Searching..." : "Search"}
+                </button>
+              </div>
+            </div>
+
+            {memoryResults && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {memoryResults.length === 0 ? (
+                  <div style={{ color: COLORS.textDim, fontSize: 13, textAlign: "center", padding: 30 }}>
+                    No similar past incidents found.
+                  </div>
+                ) : (
+                  memoryResults.map((m, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: COLORS.panelSolid,
+                        border: `1px solid ${COLORS.border}`,
+                        borderRadius: 10,
+                        padding: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, marginBottom: 8 }}>{m.summary}</div>
+                      <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12 }}>
+                        <span style={{ color: COLORS.textDim }}>
+                          <strong style={{ color: COLORS.text }}>Root cause:</strong>{" "}
+                          {m.rootCause || "—"}
+                        </span>
+                        <span style={{ color: COLORS.textDim }}>
+                          <strong style={{ color: COLORS.text }}>Remediation:</strong>{" "}
+                          {m.remediationTaken || "—"}
+                        </span>
+                        <Badge
+                          label={m.outcome || "UNKNOWN"}
+                          color={m.outcome === "SUCCESS" ? COLORS.green : COLORS.orange}
+                        />
+                        <span style={{ color: COLORS.textDim }}>
+                          {relativeTime(m.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {view === "services" && (
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 14 }}>
+              Infrastructure Map
+            </div>
+
+            {servicesLoading ? (
+              <div style={{ color: COLORS.textDim, fontSize: 13 }}>Loading...</div>
+            ) : (
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+                {services.map((s) => (
+                  <div
+                    key={s.name}
+                    style={{
+                      width: 200,
+                      padding: 20,
+                      background: COLORS.panelSolid,
+                      border: `1px solid ${s.healthy ? COLORS.green + "44" : COLORS.red + "44"}`,
+                      borderRadius: 12,
+                      textAlign: "center",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: "50%",
+                        background: s.healthy ? COLORS.green : COLORS.red,
+                        margin: "0 auto 12px",
+                        boxShadow: `0 0 10px ${s.healthy ? COLORS.green : COLORS.red}`,
+                      }}
+                    />
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+                      {s.name}
+                    </div>
+                    <Badge
+                      label={s.healthy ? "HEALTHY" : s.faultType}
+                      color={s.healthy ? COLORS.green : COLORS.red}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={loadServices}
+              style={{
+                marginTop: 20,
+                padding: "8px 16px",
+                border: `1px solid ${COLORS.borderLight}`,
+                borderRadius: 8,
+                background: "transparent",
+                color: COLORS.textDim,
+                cursor: "pointer",
+                fontSize: 13,
+              }}
+            >
+              Refresh
+            </button>
           </div>
         )}
       </div>

@@ -106,6 +106,59 @@ export async function approveCandidate(incidentId: string, candidateId: string):
   return res.json();
 }
 
+export interface AgentEvidence {
+  type: string;
+  detail: string;
+  source: string;
+}
+
+export interface AgentFinding {
+  agent: string;
+  confidence: number;
+  summary: string;
+  evidence: AgentEvidence[];
+  toolsCalled: string[];
+}
+
+export async function getEvidence(incidentId: string): Promise<AgentFinding[]> {
+  const res = await fetch(`${API_BASE}/api/incidents/${incidentId}/evidence`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch evidence");
+  return res.json();
+}
+
+export interface MemorySearchResult {
+  summary: string;
+  rootCause: string;
+  remediationTaken: string;
+  outcome: string;
+  createdAt: string;
+}
+
+export async function searchMemory(query: string, topK = 5): Promise<MemorySearchResult[]> {
+  const res = await fetch(
+    `${API_BASE}/api/memory/search?query=${encodeURIComponent(query)}&topK=${topK}`,
+    { headers: { Authorization: `Bearer ${getToken()}` } }
+  );
+  if (!res.ok) throw new Error("Failed to search memory");
+  return res.json();
+}
+
+export interface ServiceHealth {
+  name: string;
+  healthy: boolean;
+  faultType: string;
+}
+
+export async function getServiceHealth(): Promise<ServiceHealth[]> {
+  const res = await fetch(`${API_BASE}/api/simulate/services`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch service health");
+  return res.json();
+}
+
 export interface EvalRunResult {
   systemName: string;
   serviceName: string;
